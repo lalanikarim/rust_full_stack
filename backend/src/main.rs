@@ -1,48 +1,69 @@
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use models::Person;
-use surrealdb::{
-    engine::remote::ws::{Client, Ws},
-    opt::auth::Root,
-    Surreal,
-};
+pub use surrealdb::sql::Thing;
+
+use std::sync::mpsc;
+use surrealdb::engine::remote::ws::{Client, Ws};
+use surrealdb::{opt::auth::Root, Surreal};
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 struct AppState {
-    db: Arc<Mutex<Surreal<Client>>>,
+    req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>,
 }
 
 impl AppState {
-    fn new(db: Arc<Mutex<Surreal<Client>>>) -> Self {
-        Self { db }
+    fn new(req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>) -> Self {
+        Self { req_send }
     }
 }
 
+#[derive(Debug)]
+enum DbAction {
+    CreatePerson(Person),
+    GetPerson(String),
+    GetAllPersons,
+}
+
+#[derive(Debug)]
+struct DbRequest {
+    action: DbAction,
+    responder: mpsc::Sender<DbResponse>,
+}
+
+#[derive(Debug)]
+enum DbResponse {
+    Success(Vec<Person>),
+    Err(String),
+}
+
 #[tokio::main]
-async fn main() -> surrealdb::Result<()> {
-    let db = Surreal::new::<Ws>("127.0.0.1:8000").await?;
-    db.signin(Root {
-        username: "root",
-        password: "root",
-    })
-    .await?;
-    db.use_ns("test").use_db("test").await?;
-    let app_state = AppState::new(Arc::new(Mutex::new(db)));
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/ping", get(ping))
-        .route("/api/persons", get(persons))
-        .with_state(app_state);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
-    Ok(())
+async fn main() {
+    let (req_send, req_recv) = mpsc::channel::<DbRequest>();
+    let req_send = Arc::new(Mutex::new(req_send));
+    let req_recv = Mutex::new(req_recv);
+    let db = DbClient::create_db().await;
+    let db_client = Mutex::new(DbClient::new(db, req_recv));
+    let app_state = AppState::new(req_send);
+    let db_thread = tokio::spawn(async move {
+        db_client.lock().await.listen().await;
+    });
+    let api_thread = tokio::spawn(async {
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let app = Router::new()
+            .route("/", get(root))
+            .route("/ping", get(ping))
+            .route("/api/persons", get(persons))
+            .with_state(app_state);
+        axum::Server::bind(&addr)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    });
+    let _ = api_thread.await;
+    let _ = db_thread.await;
 }
 
 async fn root() -> &'static str {
@@ -54,26 +75,54 @@ async fn ping() -> (StatusCode, Json<String>) {
 }
 
 #[axum_macros::debug_handler]
-async fn persons(State(_state): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {
-    //let db = state.db;
-    //let db = db.lock().unwrap();
-    let db = Surreal::new::<Ws>("127.0.0.1:8000").await?;
-    db.signin(Root {
-        username: "root",
-        password: "root",
-    })
-    .await?;
-    db.use_ns("test").use_db("test").await?;
-    let mut response = db.query("SELECT * FROM persons").await?;
-    let response: Vec<Person> = response.take(0)?;
-    //match response {
-    //    Ok(resp) => (),
-    //    Err(_) => (),
-    //}
-    //(
-    //    StatusCode::OK,
-    Ok(Json::from(response)) //,
-                             //)
+async fn persons(State(state): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {
+    match state.req_send.lock().await.into() {
+        Some(req_send) => {
+            println!("Lock acquired");
+            let (res_send, res_recv) = mpsc::channel::<DbResponse>();
+            let send = req_send.send(DbRequest {
+                action: DbAction::GetAllPersons,
+                responder: res_send,
+            });
+            match send {
+                Ok(()) => {
+                    println!("Request sent!");
+                    match res_recv.recv() {
+                        Err(err) => Err(AppError::UnHandledError(format!(
+                            "res_recv.try_recv error: {}",
+                            err
+                        ))),
+                        Ok(result) => {
+                            println!("Result received!");
+                            match result {
+                                DbResponse::Err(err) => {
+                                    println!("Error result received!");
+                                    Err(AppError::UnHandledError(err))
+                                }
+                                DbResponse::Success(persons) => {
+                                    println!("Success result received!");
+                                    Ok(Json::from(persons))
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    println!("Failed to send request!");
+                    Err(AppError::UnHandledError(format!(
+                        "req_send.send error: {}",
+                        err
+                    )))
+                }
+            }
+        }
+        None => {
+            println!("Unable to acquire lock!");
+            Err(AppError::UnHandledError(
+                "Unable to acquire Mutex lock".to_string(),
+            ))
+        }
+    }
 }
 
 enum AppError {
@@ -93,5 +142,79 @@ impl IntoResponse for AppError {
 impl From<surrealdb::Error> for AppError {
     fn from(value: surrealdb::Error) -> Self {
         AppError::UnHandledError(value.to_string())
+    }
+}
+
+struct DbClient {
+    db: Surreal<Client>,
+    receiver: Mutex<mpsc::Receiver<DbRequest>>,
+}
+
+impl DbClient {
+    fn new(db: Surreal<Client>, receiver: Mutex<mpsc::Receiver<DbRequest>>) -> Self {
+        Self { db, receiver }
+    }
+
+    async fn create_db() -> Surreal<Client> {
+        let db = Surreal::new::<Ws>("127.0.0.1:8000").await.unwrap();
+        db.signin(Root {
+            username: "root",
+            password: "root",
+        })
+        .await
+        .unwrap();
+        db.use_ns("test").use_db("test").await.unwrap();
+        db
+    }
+
+    async fn listen(&self) {
+        let receiver = self.receiver.lock().await;
+        loop {
+            let receive = receiver.recv();
+            println!("Received request!");
+            match receive {
+                Ok(DbRequest { action, responder }) => {
+                    let query = match action {
+                        DbAction::GetAllPersons => "SELECT * FROM persons",
+                        _ => "SELECT * FROM persons",
+                    };
+                    println!("Query DB");
+                    let response = self.db.query(query).await;
+                    let response: Vec<Person> = match response {
+                        Ok(mut response) => {
+                            println!("OK response");
+                            let response: Vec<Person> = match response.take(0) {
+                                Ok(result) => {
+                                    println!("Ok result - vec found");
+                                    result
+                                }
+                                Err(err) => {
+                                    dbg!(err);
+                                    vec![]
+                                }
+                            };
+                            response
+                        }
+                        Err(err) => {
+                            dbg!(&err);
+                            vec![]
+                        }
+                    };
+                    let send = responder.send(DbResponse::Success(response));
+                    match send {
+                        Ok(()) => println!("Response Sent!"),
+                        Err(err) => {
+                            println!("Failed to send response!");
+                            dbg!(err);
+                            ()
+                        }
+                    }
+                }
+                Err(err) => {
+                    dbg!(err);
+                    ()
+                }
+            }
+        }
     }
 }

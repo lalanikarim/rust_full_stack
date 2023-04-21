@@ -1,14 +1,23 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+use serde::{Deserialize, Serialize};
+//use surrealdb::sql::Thing;
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash)]
+pub struct Thing {
+    pub tb: String,
+    pub id: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
+pub struct Person {
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    //pub id: Option<Thing>,
+    pub name: String,
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl Person {
+    pub fn new(name: String) -> Self {
+        Self {
+            /*id: None,*/ name,
+        }
     }
 }

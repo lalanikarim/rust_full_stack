@@ -1,6 +1,8 @@
 use std::{net::SocketAddr, sync::Arc};
 
+use api::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use db::{DbClient, DbRequest};
 use models::Person;
 pub use surrealdb::sql::Thing;
 
@@ -9,36 +11,151 @@ use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::{opt::auth::Root, Surreal};
 use tokio::sync::Mutex;
 
-#[derive(Clone)]
-struct AppState {
-    req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>,
-}
+use crate::api::AppError;
+use crate::db::{DbAction, DbResponse};
 
-impl AppState {
-    fn new(req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>) -> Self {
-        Self { req_send }
+mod api {
+    use std::sync::{mpsc, Arc};
+
+    use axum::{http::StatusCode, response::IntoResponse};
+    use tokio::sync::Mutex;
+
+    use crate::db::DbRequest;
+
+    #[derive(Clone)]
+    pub struct AppState {
+        pub req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>,
+    }
+
+    impl AppState {
+        pub fn new(req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>) -> Self {
+            Self { req_send }
+        }
+    }
+    pub enum AppError {
+        UnHandledError(String),
+    }
+
+    impl IntoResponse for AppError {
+        fn into_response(self) -> axum::response::Response {
+            let body = match self {
+                Self::UnHandledError(err) => format!("something went wrong: {}", err),
+            };
+
+            (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+        }
+    }
+
+    impl From<surrealdb::Error> for AppError {
+        fn from(value: surrealdb::Error) -> Self {
+            AppError::UnHandledError(value.to_string())
+        }
     }
 }
 
-#[derive(Debug)]
-enum DbAction {
-    CreatePerson(Person),
-    GetPerson(String),
-    GetAllPersons,
-}
+mod db {
+    use std::sync::mpsc;
 
-#[derive(Debug)]
-struct DbRequest {
-    action: DbAction,
-    responder: mpsc::Sender<DbResponse>,
-}
+    use models::Person;
+    use surrealdb::{
+        engine::remote::ws::{Client, Ws},
+        opt::auth::Root,
+        Surreal,
+    };
+    use tokio::sync::Mutex;
 
-#[derive(Debug)]
-enum DbResponse {
-    Success(Vec<Person>),
-    Err(String),
-}
+    #[derive(Debug)]
+    pub enum DbAction {
+        CreatePerson(Person),
+        GetPerson(String),
+        GetAllPersons,
+    }
 
+    #[derive(Debug)]
+    pub struct DbRequest {
+        pub action: DbAction,
+        pub responder: mpsc::Sender<DbResponse>,
+    }
+
+    #[derive(Debug)]
+    pub enum DbResponse {
+        Success(Vec<Person>),
+        Err(String),
+    }
+    pub struct DbClient {
+        pub db: Surreal<Client>,
+        pub receiver: Mutex<mpsc::Receiver<DbRequest>>,
+    }
+
+    impl DbClient {
+        pub fn new(db: Surreal<Client>, receiver: Mutex<mpsc::Receiver<DbRequest>>) -> Self {
+            Self { db, receiver }
+        }
+
+        pub async fn create_db() -> Surreal<Client> {
+            let db = Surreal::new::<Ws>("127.0.0.1:8000").await.unwrap();
+            db.signin(Root {
+                username: "root",
+                password: "root",
+            })
+            .await
+            .unwrap();
+            db.use_ns("test").use_db("test").await.unwrap();
+            db
+        }
+
+        pub async fn listen(&self) {
+            let receiver = self.receiver.lock().await;
+            loop {
+                let receive = receiver.recv();
+                println!("Received request!");
+                match receive {
+                    Ok(DbRequest { action, responder }) => {
+                        let query = match action {
+                            DbAction::GetAllPersons => "SELECT * FROM persons",
+                            _ => "SELECT * FROM persons",
+                        };
+                        println!("Query DB");
+                        let response = self.db.query(query).await;
+                        let response: Vec<Person> = match response {
+                            Ok(mut response) => {
+                                println!("OK response");
+                                let response: Vec<Person> = match response.take(0) {
+                                    Ok(result) => {
+                                        println!("Ok result - vec found");
+                                        result
+                                    }
+                                    Err(err) => {
+                                        dbg!(err);
+                                        vec![]
+                                    }
+                                };
+                                response
+                            }
+                            Err(err) => {
+                                dbg!(&err);
+                                vec![]
+                            }
+                        };
+                        let send = responder.send(DbResponse::Success(response));
+                        match send {
+                            Ok(()) => println!("Response Sent!"),
+                            Err(err) => {
+                                println!("Failed to send response!");
+                                dbg!(err);
+                                ()
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        dbg!(err);
+                        ()
+                    }
+                }
+            }
+        }
+    }
+}
 #[tokio::main]
 async fn main() {
     let (req_send, req_recv) = mpsc::channel::<DbRequest>();
@@ -121,100 +238,6 @@ async fn persons(State(state): State<AppState>) -> Result<Json<Vec<Person>>, App
             Err(AppError::UnHandledError(
                 "Unable to acquire Mutex lock".to_string(),
             ))
-        }
-    }
-}
-
-enum AppError {
-    UnHandledError(String),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> axum::response::Response {
-        let body = match self {
-            Self::UnHandledError(err) => format!("something went wrong: {}", err),
-        };
-
-        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
-    }
-}
-
-impl From<surrealdb::Error> for AppError {
-    fn from(value: surrealdb::Error) -> Self {
-        AppError::UnHandledError(value.to_string())
-    }
-}
-
-struct DbClient {
-    db: Surreal<Client>,
-    receiver: Mutex<mpsc::Receiver<DbRequest>>,
-}
-
-impl DbClient {
-    fn new(db: Surreal<Client>, receiver: Mutex<mpsc::Receiver<DbRequest>>) -> Self {
-        Self { db, receiver }
-    }
-
-    async fn create_db() -> Surreal<Client> {
-        let db = Surreal::new::<Ws>("127.0.0.1:8000").await.unwrap();
-        db.signin(Root {
-            username: "root",
-            password: "root",
-        })
-        .await
-        .unwrap();
-        db.use_ns("test").use_db("test").await.unwrap();
-        db
-    }
-
-    async fn listen(&self) {
-        let receiver = self.receiver.lock().await;
-        loop {
-            let receive = receiver.recv();
-            println!("Received request!");
-            match receive {
-                Ok(DbRequest { action, responder }) => {
-                    let query = match action {
-                        DbAction::GetAllPersons => "SELECT * FROM persons",
-                        _ => "SELECT * FROM persons",
-                    };
-                    println!("Query DB");
-                    let response = self.db.query(query).await;
-                    let response: Vec<Person> = match response {
-                        Ok(mut response) => {
-                            println!("OK response");
-                            let response: Vec<Person> = match response.take(0) {
-                                Ok(result) => {
-                                    println!("Ok result - vec found");
-                                    result
-                                }
-                                Err(err) => {
-                                    dbg!(err);
-                                    vec![]
-                                }
-                            };
-                            response
-                        }
-                        Err(err) => {
-                            dbg!(&err);
-                            vec![]
-                        }
-                    };
-                    let send = responder.send(DbResponse::Success(response));
-                    match send {
-                        Ok(()) => println!("Response Sent!"),
-                        Err(err) => {
-                            println!("Failed to send response!");
-                            dbg!(err);
-                            ()
-                        }
-                    }
-                }
-                Err(err) => {
-                    dbg!(err);
-                    ()
-                }
-            }
         }
     }
 }

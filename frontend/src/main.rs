@@ -1,4 +1,5 @@
 use models::Person;
+use reqwest::get;
 use yew::prelude::*;
 
 #[function_component(App)]
@@ -12,16 +13,49 @@ fn app() -> Html {
 
 #[function_component(PersonsComponent)]
 fn persons_component() -> Html {
-    let persons = vec![Person::new("karim".into()), Person::new("semina".into())];
-    html! {
-        <>
-        {
-         persons
-        .iter()
-        .map(|person| html! {<PersonComponent person={person.clone()}/>})
-        .collect::<Html>()
+    let persons = use_state(|| None);
+    {
+        let persons = persons.clone();
+        use_effect_with_deps(
+            move |_| {
+                let persons = persons.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let url = "http://localhost:3000/api/persons";
+
+                    log::info!("Making Request");
+                    match get(url).await {
+                        Ok(resp) => {
+                            log::info!("Response Received");
+                            match resp.json().await {
+                                Ok(json) => {
+                                    let fetched_persons: Vec<Person> = json;
+                                    persons.set(Some(fetched_persons));
+                                }
+                                Err(err) => log::error!("Error received: {}", err.to_string()),
+                            };
+                        }
+                        Err(err) => log::error!("Error received: {}", err.to_string()),
+                    }
+                });
+            },
+            (),
+        );
+    }
+    if let Some(persons) = &*persons {
+        html! {
+            <>
+            {
+             persons
+            .iter()
+            .map(|person| html! {<PersonComponent person={person.clone()}/>})
+            .collect::<Html>()
+            }
+            </>
         }
-        </>
+    } else {
+        html! {
+            <span>{"No items found"}</span>
+        }
     }
 }
 
@@ -41,5 +75,6 @@ fn person_component(PersonProps { person }: &PersonProps) -> Html {
 }
 
 fn main() {
+    wasm_logger::init(wasm_logger::Config::default());
     yew::Renderer::<App>::new().render();
 }

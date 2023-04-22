@@ -4,6 +4,7 @@ pub mod db;
 use std::{net::SocketAddr, sync::Arc};
 
 use api::AppState;
+use axum::routing::get_service;
 use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use db::{DbClient, DbRequest};
 use models::Person;
@@ -15,6 +16,7 @@ use tokio::sync::Mutex;
 
 use crate::api::AppError;
 use crate::db::{DbAction, DbResponse};
+use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
@@ -30,10 +32,13 @@ async fn main() {
     let api_thread = tokio::spawn(async {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
         let app = Router::new()
-            .route("/", get(root))
-            .route("/ping", get(ping))
             .route("/api/persons", get(persons))
-            .with_state(app_state);
+            .with_state(app_state)
+            .fallback(
+                get_service(ServeDir::new("./dist")).handle_error(|_| async move {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+                }),
+            );
         axum::Server::bind(&addr)
             .serve(app.into_make_service())
             .await

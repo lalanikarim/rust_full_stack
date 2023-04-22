@@ -1,6 +1,8 @@
 pub mod api;
 pub mod db;
 
+use std::convert::Infallible;
+use std::path::PathBuf;
 use std::{net::SocketAddr, sync::Arc};
 
 use api::AppState;
@@ -31,13 +33,19 @@ async fn main() {
     });
     let api_thread = tokio::spawn(async {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dist");
+        let service_error_function = |error: Infallible| async move {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("internal server error: {error}"),
+            )
+        };
         let app = Router::new()
             .route("/api/persons", get(persons))
             .with_state(app_state)
             .fallback(
-                get_service(ServeDir::new("./dist")).handle_error(|_| async move {
-                    (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
-                }),
+                get_service(ServeDir::new(dist_dir).append_index_html_on_directories(true))
+                    .handle_error(service_error_function),
             );
         axum::Server::bind(&addr)
             .serve(app.into_make_service())

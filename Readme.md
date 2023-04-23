@@ -24,3 +24,4 @@ Hopefully, I'll be able to make enough progress, keep the momentum going, and so
 
 Also, if you are new to Rust, here is one piece of advice.  
 Don't fear the Borrow Checker. Embrace it. 
+Let the compiler be your guide.

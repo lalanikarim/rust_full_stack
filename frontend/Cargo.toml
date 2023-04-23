@@ -13,3 +13,4 @@ serde = { version = "1.0.160", features = ["derive"] }
 wasm-bindgen-futures = { version = "0.4.34", features = ["futures-core"] }
 wasm-logger = "0.2.0"
 log = "0.4.17"
+yew-router = "0.17.0"

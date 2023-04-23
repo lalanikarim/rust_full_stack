@@ -14,7 +14,7 @@ pub enum DbAction {
 
 #[derive(Debug)]
 pub enum DbResult {
-    Person(Person),
+    Person(Option<Person>),
     Persons(Vec<Person>),
 }
 

@@ -2,6 +2,7 @@ pub mod api;
 pub mod db;
 
 use api::{AppState, AxumApp};
+use axum::extract::Path;
 use axum::{extract::State, routing::get, Json, Router};
 use db::{DbClient, DbResult};
 use models::Person;
@@ -28,12 +29,25 @@ async fn main() {
         db_client.lock().await.listen().await;
     });
     let api_thread = tokio::spawn(async {
-        let routes: Router<AppState> = Router::new().route("/persons", get(persons));
+        let routes: Router<AppState> = Router::new()
+            .route("/persons", get(persons))
+            .route("/persons/:id", get(person));
         let server = AxumApp::create(routes, app_state, api_addr);
         server.await.unwrap();
     });
     let _ = api_thread.await;
     let _ = db_thread.await;
+}
+
+async fn person(
+    State(state): State<AppState>,
+    Path((id,)): Path<(String,)>,
+) -> Result<Json<Option<Person>>, AppError> {
+    if let DbResult::Person(person) = api::make_db_request(state, DbAction::GetPerson(id)).await? {
+        Ok(Json::from(person))
+    } else {
+        Err(AppError::UnHandledError("Bad response".to_string()))
+    }
 }
 
 async fn persons(State(state): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {

@@ -54,13 +54,14 @@ impl DbClient {
             println!("Received request!");
             match receive {
                 Ok(DbRequest { action, responder }) => {
-                    let query = match action {
-                        DbAction::GetAllPersons => "SELECT * FROM persons",
-                        _ => "SELECT * FROM persons",
+                    let query = match &action {
+                        DbAction::GetAllPersons => "SELECT * FROM persons".to_string(),
+                        DbAction::GetPerson(id) => format!("SELECT * FROM persons:{}", id),
+                        _ => "SELECT * FROM persons".to_string(),
                     };
                     println!("Query DB");
                     let response = self.db.query(query).await;
-                    let response: Vec<Person> = match response {
+                    let response: DbResult = match response {
                         Ok(mut response) => {
                             println!("OK response");
                             let response: Vec<Person> = match response.take(0) {
@@ -73,14 +74,18 @@ impl DbClient {
                                     vec![]
                                 }
                             };
-                            response
+                            if let DbAction::GetPerson(_) = action {
+                                DbResult::Person(response.first().to_owned().cloned())
+                            } else {
+                                DbResult::Persons(response)
+                            }
                         }
                         Err(err) => {
                             dbg!(&err);
-                            vec![]
+                            DbResult::Persons(vec![])
                         }
                     };
-                    let send = responder.send(DbResponse::Success(DbResult::Persons(response)));
+                    let send = responder.send(DbResponse::Success(response));
                     match send {
                         Ok(()) => println!("Response Sent!"),
                         Err(err) => {

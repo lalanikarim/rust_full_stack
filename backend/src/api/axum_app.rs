@@ -17,8 +17,9 @@ impl AxumApp {
     pub fn create(
         routes: Router<AppState>,
         state: AppState,
+        listener_addr: &str,
     ) -> Server<AddrIncoming, IntoMakeService<Router>> {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let addr: SocketAddr = listener_addr.parse().expect("Unable to parse IP Address");
         let dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dist");
         let service_error_function = |error: Infallible| async move {
             (

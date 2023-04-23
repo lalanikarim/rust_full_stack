@@ -10,18 +10,29 @@ pub use surrealdb::sql::Thing;
 use std::sync::mpsc;
 
 use crate::api::AppError;
-use crate::db::{DbAction, DbResponse};
+use crate::db::{DbAction, DbConfig, DbResponse};
+
+#[macro_use]
+extern crate dotenv_codegen;
 
 #[tokio::main]
 async fn main() {
-    let (db_client, req_send) = DbClient::create().await;
+    let db_config = DbConfig {
+        db_url: dotenv!("SURREALDB_URL"),
+        db_username: dotenv!("SURREALDB_USERNAME"),
+        db_password: dotenv!("SURREALDB_PASSWORD"),
+        db_ns: dotenv!("SURREALDB_NS"),
+        db_name: dotenv!("SURREALDB_DATABASE"),
+    };
+    let api_addr = dotenv!("API_LISTEN_ON");
+    let (db_client, req_send) = DbClient::create(db_config).await;
     let app_state = AppState::new(req_send);
     let db_thread = tokio::spawn(async move {
         db_client.lock().await.listen().await;
     });
     let api_thread = tokio::spawn(async {
         let routes: Router<AppState> = Router::new().route("/persons", get(persons));
-        let server = AxumApp::create(routes, app_state);
+        let server = AxumApp::create(routes, app_state, api_addr);
         server.await.unwrap();
     });
     let _ = api_thread.await;

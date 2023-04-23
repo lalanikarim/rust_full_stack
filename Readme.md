@@ -98,3 +98,11 @@ CREATE persons SET name = 'Karim'
 
 #### Frontend
 1. Running `cargo run-script watch` from `frontend` folder will run `trunk serve` for frontend.
+
+### Inspirations
+
+The inspiration for this project came after watching videos from several YouTube creators who make videos about the Rust programming language, most notably the following:
+1. [Code to the Moon](https://www.youtube.com/@codetothemoon)
+2. [Let's Get Rusty](https://www.youtube.com/@letsgetrusty)
+3. [No Boilerplate](https://www.youtube.com/@NoBoilerplate)
+4. [Jeremy Chone](https://www.youtube.com/@JeremyChone)

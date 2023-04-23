@@ -92,9 +92,9 @@ CREATE persons SET name = 'Karim'
 
 ### Run Scripts
 
-1. Backend  
-a. Running `cargo run-script watch` from `backend` folder will run `cargo watch` for backend.
-b. Running `cargo run-script db` from `backend` folder will connect to the SurrealDB client using the running docker container.
+#### Backend  
+1. Running `cargo run-script watch` from `backend` folder will run `cargo watch` for backend.
+2. Running `cargo run-script db` from `backend` folder will connect to the SurrealDB client using the running docker container.
 
-2. Frontend
-a. Running `cargo run-script watch` from `frontend` folder will run `trunk serve` for frontend.
+#### Frontend
+1. Running `cargo run-script watch` from `frontend` folder will run `trunk serve` for frontend.

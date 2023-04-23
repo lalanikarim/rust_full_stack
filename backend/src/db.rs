@@ -13,6 +13,12 @@ pub enum DbAction {
 }
 
 #[derive(Debug)]
+pub enum DbResult {
+    Person(Person),
+    Persons(Vec<Person>),
+}
+
+#[derive(Debug)]
 pub struct DbRequest {
     pub action: DbAction,
     pub responder: mpsc::Sender<DbResponse>,
@@ -20,7 +26,7 @@ pub struct DbRequest {
 
 #[derive(Debug)]
 pub enum DbResponse {
-    Success(Vec<Person>),
+    Success(DbResult),
     Err(String),
 }
 

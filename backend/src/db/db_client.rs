@@ -10,7 +10,7 @@ use surrealdb::{
 };
 use tokio::sync::Mutex;
 
-use crate::db::{DbAction, DbResponse};
+use crate::db::{DbAction, DbResponse, DbResult};
 
 use super::{db_config::DbConfig, DbRequest};
 pub struct DbClient {
@@ -80,7 +80,7 @@ impl DbClient {
                             vec![]
                         }
                     };
-                    let send = responder.send(DbResponse::Success(response));
+                    let send = responder.send(DbResponse::Success(DbResult::Persons(response)));
                     match send {
                         Ok(()) => println!("Response Sent!"),
                         Err(err) => {

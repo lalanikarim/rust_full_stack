@@ -5,4 +5,4 @@ members = [
   "models"
 ]
 
-default-members = ["backend"]
+default-members = ["backend", "frontend"]

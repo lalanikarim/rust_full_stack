@@ -43,6 +43,10 @@ cargo install cargo-watch
 4. Docker/Podman is needed with ability to run docker-compose. This is needed to run SurrealDB in docker container. Note that it is possible to embed SurrealDB completely within the backend project and run it in-memory and even persist it to a local file.  
 You may try it out. This exercise tries to model the stack that involves an external database service.  
 5. Make a symbolic link from `frontend/dist` folder to `backend/dist` folder. If you are unable to do so, you'll need to copy the files manually.  
+6. (Optional) Install the `cargo-run-script` crate. This will allow you to run included run-scripts for convenience.  
+```
+cargo install cargo-run-script
+```
 
 ### Launching the project
 
@@ -85,3 +89,12 @@ CREATE persons SET name = 'Karim'
 10. Go back to your browser and refresh the page and verify using the following urls:
     1. `https://localhost:3000/api/persons` to verify that backend API is working.
     2. `https://localhost:3000/` to verify frontend app is working 
+
+### Run Scripts
+
+1. Backend  
+a. Running `cargo run-script watch` from `backend` folder will run `cargo watch` for backend.
+b. Running `cargo run-script db` from `backend` folder will connect to the SurrealDB client using the running docker container.
+
+2. Frontend
+a. Running `cargo run-script watch` from `frontend` folder will run `trunk serve` for frontend.

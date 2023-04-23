@@ -3,6 +3,11 @@ use reqwest::get;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+#[macro_use]
+extern crate dotenv_codegen;
+
+static BASE_URL: &str = dotenv!("API_BASE_URL");
+
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
     #[at("/")]
@@ -36,7 +41,7 @@ fn persons_component() -> Html {
             move |_| {
                 let persons = persons.clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    let url = "http://localhost:3000/api/persons";
+                    let url = format!("{BASE_URL}/api/persons");
 
                     log::info!("Making Request");
                     match get(url).await {
@@ -91,7 +96,7 @@ fn person_details_component(PersonDetailsProps { id }: &PersonDetailsProps) -> H
                 let person = person.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     let id = id.clone();
-                    let url = format!("http://localhost:3000/api/persons/{id}");
+                    let url = format!("{BASE_URL}/api/persons/{id}");
 
                     log::info!("Making Request");
                     match get(url).await {

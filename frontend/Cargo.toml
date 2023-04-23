@@ -14,3 +14,5 @@ wasm-bindgen-futures = { version = "0.4.34", features = ["futures-core"] }
 wasm-logger = "0.2.0"
 log = "0.4.17"
 yew-router = "0.17.0"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"

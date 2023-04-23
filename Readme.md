@@ -1,4 +1,4 @@
-# A Very Bad Rust Project
+# A Very Poorly Written Rust Project
 
 This work-in-progress project is an exercise in getting familiar with Rust.  
 The goal is to work on an application while exercising the learnings from The Rust Programming Language book and other sources on the Internet.  

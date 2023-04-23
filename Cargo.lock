@@ -226,6 +226,7 @@ dependencies = [
  "axum",
  "axum-macros",
  "futures",
+ "hyper",
  "models",
  "serde",
  "serde_json",

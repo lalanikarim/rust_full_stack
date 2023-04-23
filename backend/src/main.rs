@@ -1,67 +1,31 @@
 pub mod api;
 pub mod db;
 
-use std::convert::Infallible;
-use std::path::PathBuf;
-use std::{net::SocketAddr, sync::Arc};
-
-use api::AppState;
-use axum::routing::get_service;
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
+use api::{AppState, AxumApp};
+use axum::{extract::State, routing::get, Json, Router};
 use db::{DbClient, DbRequest};
 use models::Person;
 pub use surrealdb::sql::Thing;
 
 use std::sync::mpsc;
 
-use tokio::sync::Mutex;
-
 use crate::api::AppError;
 use crate::db::{DbAction, DbResponse};
-use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
-    let (req_send, req_recv) = mpsc::channel::<DbRequest>();
-    let req_send = Arc::new(Mutex::new(req_send));
-    let req_recv = Mutex::new(req_recv);
-    let db = DbClient::create_db().await;
-    let db_client = Mutex::new(DbClient::new(db, req_recv));
+    let (db_client, req_send) = DbClient::create().await;
     let app_state = AppState::new(req_send);
     let db_thread = tokio::spawn(async move {
         db_client.lock().await.listen().await;
     });
     let api_thread = tokio::spawn(async {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-        let dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dist");
-        let service_error_function = |error: Infallible| async move {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("internal server error: {error}"),
-            )
-        };
-        let app = Router::new()
-            .route("/api/persons", get(persons))
-            .with_state(app_state)
-            .fallback(
-                get_service(ServeDir::new(dist_dir).append_index_html_on_directories(true))
-                    .handle_error(service_error_function),
-            );
-        axum::Server::bind(&addr)
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
+        let routes: Router<AppState> = Router::new().route("/persons", get(persons));
+        let server = AxumApp::create(routes, app_state);
+        server.await.unwrap();
     });
     let _ = api_thread.await;
     let _ = db_thread.await;
-}
-
-async fn root() -> &'static str {
-    "Hello World"
-}
-
-async fn ping() -> (StatusCode, Json<String>) {
-    (StatusCode::OK, Json::from("pong".to_string()))
 }
 
 #[axum_macros::debug_handler]

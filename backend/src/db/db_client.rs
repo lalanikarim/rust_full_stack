@@ -1,6 +1,8 @@
-use std::sync::mpsc;
-
 use models::Person;
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc,
+};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
@@ -8,35 +10,24 @@ use surrealdb::{
 };
 use tokio::sync::Mutex;
 
-#[derive(Debug)]
-pub enum DbAction {
-    CreatePerson(Person),
-    GetPerson(String),
-    GetAllPersons,
-}
+use crate::db::{DbAction, DbResponse};
 
-#[derive(Debug)]
-pub struct DbRequest {
-    pub action: DbAction,
-    pub responder: mpsc::Sender<DbResponse>,
-}
-
-#[derive(Debug)]
-pub enum DbResponse {
-    Success(Vec<Person>),
-    Err(String),
-}
+use super::DbRequest;
 pub struct DbClient {
     pub db: Surreal<Client>,
-    pub receiver: Mutex<mpsc::Receiver<DbRequest>>,
+    pub receiver: Mutex<Receiver<DbRequest>>,
 }
 
 impl DbClient {
-    pub fn new(db: Surreal<Client>, receiver: Mutex<mpsc::Receiver<DbRequest>>) -> Self {
-        Self { db, receiver }
+    pub async fn create() -> (Mutex<Self>, Arc<Mutex<Sender<DbRequest>>>) {
+        let (req_send, req_recv) = channel::<DbRequest>();
+        let db = DbClient::create_db().await;
+        let sender = Arc::new(Mutex::new(req_send));
+        let receiver = Mutex::new(req_recv);
+        (Mutex::new(Self { db, receiver }), Arc::clone(&sender))
     }
 
-    pub async fn create_db() -> Surreal<Client> {
+    async fn create_db() -> Surreal<Client> {
         let db = Surreal::new::<Ws>("127.0.0.1:8000").await.unwrap();
         db.signin(Root {
             username: "root",

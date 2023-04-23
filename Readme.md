@@ -25,3 +25,63 @@ Hopefully, I'll be able to make enough progress, keep the momentum going, and so
 Also, if you are new to Rust, here is one piece of advice.  
 Don't fear the Borrow Checker. Embrace it. 
 Let the compiler be your guide.
+
+## Getting Started
+
+### Prerequisites
+
+1. Ensure you have rust 1.60.0 installed.  
+2. Install Yew prerequisites, trunk cargo crate, as well as wasm target.  
+```
+cargo install trunk
+rustup add target wasm32-unknown-unknown
+```
+3. Install the `cargo-watch` crate. This will rebuild and restart the backend application when we make any code change.  
+```
+cargo install cargo-watch
+```
+4. Docker/Podman is needed with ability to run docker-compose. This is needed to run SurrealDB in docker container. Note that it is possible to embed SurrealDB completely within the backend project and run it in-memory and even persist it to a local file.  
+You may try it out. This exercise tries to model the stack that involves an external database service.  
+5. Make a symbolic link from `frontend/dist` folder to `backend/dist` folder. If you are unable to do so, you'll need to copy the files manually.  
+
+### Launching the project
+
+1. Copy the included `.env.example` file to `.env`.
+2. Launch the SurrealDB container by running the docker-comose.yml as follows:
+```
+docker-compose up
+```
+3. Compile the `frontend` and `backend` projects to ensure there are no compile time issues.  
+```
+cd backend
+cargo build
+cd ../frontend
+cargo build
+```
+4. Start the `frontend` application build with watch using `trunk`.
+```
+trunk serve
+```
+5. Start the `backend` application with `cargo watch`
+```
+cargo watch -c -q -x "run"
+```
+6. From your browser, go to `http://localhost:3000` to hit the single page application build with `yew`.  
+Verify backend is working by going to `http://localhost:3000/api/persons`.  
+Neither of these should work since the database is empty.
+7. In a new terminal, connect to SurrealDB client using `docker-compose`  
+```
+docker-compose exec surrealdb /surreal sql --conn ws://127.0.0.1:3000
+```
+8. Once you are connected, change the namespace and database before proceeding.  
+```
+use ns test
+use db test
+```
+9. Now create new persons records in SurrealDB. Note that only `Name` field is required for the project.  
+```
+CREATE persons SET name = 'Karim'
+```
+10. Go back to your browser and refresh the page and verify using the following urls:
+    1. `https://localhost:3000/api/persons` to verify that backend API is working.
+    2. `https://localhost:3000/` to verify frontend app is working 

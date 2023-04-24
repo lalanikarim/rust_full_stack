@@ -36,13 +36,8 @@ async fn person(
     State(AppState { db }): State<AppState>,
     Path((id,)): Path<(String,)>,
 ) -> Result<Json<Option<Person>>, AppError> {
-    let mut response = db.query(format!("SELECT * from persons:{id}")).await?;
-    let result: Vec<Person> = response.take(0)?;
-    if result.len() > 0 {
-        Ok(Json::from(Some(result[0].clone())))
-    } else {
-        Err(AppError::UnHandledError("Bad response".to_string()))
-    }
+    let person: Option<Person> = db.select(("persons", id)).await?;
+    Ok(Json::from(person))
 }
 
 async fn persons(State(AppState { db }): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {

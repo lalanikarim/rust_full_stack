@@ -13,11 +13,11 @@ pub struct DbClient {
 
 impl DbClient {
     pub async fn create(db_config: DbConfig) -> Surreal<Client> {
-        let db = DbClient::create_db(db_config).await;
+        let db = DbClient::connect(db_config).await;
         db
     }
 
-    async fn create_db(
+    async fn connect(
         DbConfig {
             db_url,
             db_username,

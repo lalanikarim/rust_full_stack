@@ -1,18 +1,7 @@
-use serde::{Deserialize, Serialize};
+pub mod person;
+pub use person::Person;
+
 use serde_json::Value;
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Person {
-    pub id: Option<Value>,
-    pub name: String,
-}
-
-impl Person {
-    pub fn new(name: String) -> Self {
-        Self { id: None, name }
-    }
-}
-
 pub fn id_from_thing(id: Option<Value>) -> Option<String> {
     if let Some(id) = id {
         if let Some(id) = id.get("id") {

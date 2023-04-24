@@ -3,7 +3,6 @@ use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Person {
-    //#[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Value>,
     pub name: String,
 }
@@ -11,5 +10,21 @@ pub struct Person {
 impl Person {
     pub fn new(name: String) -> Self {
         Self { id: None, name }
+    }
+}
+
+pub fn id_from_thing(id: Option<Value>) -> Option<String> {
+    if let Some(id) = id {
+        if let Some(id) = id.get("id") {
+            if let Some(id) = id.get("String") {
+                id.as_str().map(String::from)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }

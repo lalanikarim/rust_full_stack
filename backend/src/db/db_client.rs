@@ -1,30 +1,20 @@
-use models::Person;
-use std::sync::{
-    mpsc::{channel, Receiver, Sender},
-    Arc,
-};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
     Surreal,
 };
-use tokio::sync::Mutex;
 
-use crate::db::{DbAction, DbResponse, DbResult};
+use super::db_config::DbConfig;
 
-use super::{db_config::DbConfig, DbRequest};
+#[derive(Clone)]
 pub struct DbClient {
     pub db: Surreal<Client>,
-    pub receiver: Mutex<Receiver<DbRequest>>,
 }
 
 impl DbClient {
-    pub async fn create(db_config: DbConfig) -> (Mutex<Self>, Arc<Mutex<Sender<DbRequest>>>) {
-        let (req_send, req_recv) = channel::<DbRequest>();
+    pub async fn create(db_config: DbConfig) -> Surreal<Client> {
         let db = DbClient::create_db(db_config).await;
-        let sender = Arc::new(Mutex::new(req_send));
-        let receiver = Mutex::new(req_recv);
-        (Mutex::new(Self { db, receiver }), Arc::clone(&sender))
+        db
     }
 
     async fn create_db(
@@ -45,61 +35,5 @@ impl DbClient {
         .unwrap();
         db.use_ns(db_ns).use_db(db_name).await.unwrap();
         db
-    }
-
-    pub async fn listen(&self) {
-        let receiver = self.receiver.lock().await;
-        loop {
-            let receive = receiver.recv();
-            println!("Received request!");
-            match receive {
-                Ok(DbRequest { action, responder }) => {
-                    let query = match &action {
-                        DbAction::GetAllPersons => "SELECT * FROM persons".to_string(),
-                        DbAction::GetPerson(id) => format!("SELECT * FROM persons:{}", id),
-                        _ => "SELECT * FROM persons".to_string(),
-                    };
-                    println!("Query DB");
-                    let response = self.db.query(query).await;
-                    let response: DbResult = match response {
-                        Ok(mut response) => {
-                            println!("OK response");
-                            let response: Vec<Person> = match response.take(0) {
-                                Ok(result) => {
-                                    println!("Ok result - vec found");
-                                    result
-                                }
-                                Err(err) => {
-                                    dbg!(err);
-                                    vec![]
-                                }
-                            };
-                            if let DbAction::GetPerson(_) = action {
-                                DbResult::Person(response.first().to_owned().cloned())
-                            } else {
-                                DbResult::Persons(response)
-                            }
-                        }
-                        Err(err) => {
-                            dbg!(&err);
-                            DbResult::Persons(vec![])
-                        }
-                    };
-                    let send = responder.send(DbResponse::Success(response));
-                    match send {
-                        Ok(()) => println!("Response Sent!"),
-                        Err(err) => {
-                            println!("Failed to send response!");
-                            dbg!(err);
-                            ()
-                        }
-                    }
-                }
-                Err(err) => {
-                    dbg!(err);
-                    ()
-                }
-            }
-        }
     }
 }

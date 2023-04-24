@@ -1,15 +1,12 @@
-use std::sync::{mpsc, Arc};
+use surrealdb::{engine::remote::ws::Client, Surreal};
 
-use tokio::sync::Mutex;
-
-use crate::db::DbRequest;
 #[derive(Clone)]
 pub struct AppState {
-    pub req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>,
+    pub db: Surreal<Client>,
 }
 
 impl AppState {
-    pub fn new(req_send: Arc<Mutex<mpsc::Sender<DbRequest>>>) -> Self {
-        Self { req_send }
+    pub fn new(db: Surreal<Client>) -> Self {
+        Self { db }
     }
 }

@@ -4,11 +4,11 @@ pub mod db;
 use api::{AppState, AxumApp};
 use axum::extract::Path;
 use axum::{extract::State, routing::get, Json, Router};
-use db::{DbClient, DbResult};
+use db::DbClient;
 use models::Person;
 
 use crate::api::AppError;
-use crate::db::{DbAction, DbConfig};
+use crate::db::DbConfig;
 
 #[macro_use]
 extern crate dotenv_codegen;
@@ -23,38 +23,30 @@ async fn main() {
         db_name: dotenv!("SURREALDB_DATABASE"),
     };
     let api_addr = dotenv!("API_LISTEN_ON");
-    let (db_client, req_send) = DbClient::create(db_config).await;
-    let app_state = AppState::new(req_send);
-    let db_thread = tokio::spawn(async move {
-        db_client.lock().await.listen().await;
-    });
-    let api_thread = tokio::spawn(async {
-        let routes: Router<AppState> = Router::new()
-            .route("/persons", get(persons))
-            .route("/persons/:id", get(person));
-        let server = AxumApp::create(routes, app_state, api_addr);
-        server.await.unwrap();
-    });
-    let _ = api_thread.await;
-    let _ = db_thread.await;
+    let db = DbClient::create(db_config).await;
+    let state = AppState::new(db);
+    let routes: Router<AppState> = Router::new()
+        .route("/persons", get(persons))
+        .route("/persons/:id", get(person));
+    let server = AxumApp::create(routes, state, api_addr);
+    server.await.unwrap();
 }
 
 async fn person(
-    State(state): State<AppState>,
+    State(AppState { db }): State<AppState>,
     Path((id,)): Path<(String,)>,
 ) -> Result<Json<Option<Person>>, AppError> {
-    if let DbResult::Person(person) = api::make_db_request(state, DbAction::GetPerson(id)).await? {
-        Ok(Json::from(person))
+    let mut response = db.query(format!("SELECT * from persons:{id}")).await?;
+    let result: Vec<Person> = response.take(0)?;
+    if result.len() > 0 {
+        Ok(Json::from(Some(result[0].clone())))
     } else {
         Err(AppError::UnHandledError("Bad response".to_string()))
     }
 }
 
-async fn persons(State(state): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {
-    if let DbResult::Persons(persons) = api::make_db_request(state, DbAction::GetAllPersons).await?
-    {
-        Ok(Json::from(persons))
-    } else {
-        Err(AppError::UnHandledError("Bad response".to_string()))
-    }
+async fn persons(State(AppState { db }): State<AppState>) -> Result<Json<Vec<Person>>, AppError> {
+    let mut response = db.query("SELECT * from persons").await?;
+    let persons: Vec<Person> = response.take(0)?;
+    Ok(Json::from(persons))
 }

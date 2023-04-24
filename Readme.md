@@ -10,7 +10,7 @@ Why settle with just one simple Rust project when you can make it as complex as 
 This project contains: 
 1. a Web application backend API written in Rust (using Axum)
 2. a Web application frontend written in Rust (using Yew)
-3. an interface with a nontraditional database (SurrealDB, also written in Rust) which adds a whole different level of complexity that someone new to Rust should avoid dealing with
+3. an interface with a nontraditional database (SurrealDB, also written in Rust) 
 
 ## Goals of the exercise
 

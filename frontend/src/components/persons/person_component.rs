@@ -1,4 +1,4 @@
-use models::{id_from_thing, Person};
+use models::Person;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -11,8 +11,8 @@ pub struct PersonProps {
 
 #[function_component(PersonComponent)]
 pub fn person_component(PersonProps { person }: &PersonProps) -> Html {
-    let id = &person.id;
-    let id = id_from_thing(id.clone()).unwrap();
+    let id = person.clone().id.expect("Id missing");
+    let id = id.id;
     html! {
         <>
             <div>
@@ -21,7 +21,7 @@ pub fn person_component(PersonProps { person }: &PersonProps) -> Html {
             </div>
             <div>
                 <span>{"Id: "}</span>
-                <Link<Route> to={Route::Person { id: id.clone() }}>{ &id }</Link<Route>>
+                <Link<Route> to={Route::Person { id: id.to_string() }}>{ id.to_string() }</Link<Route>>
             </div>
         </>
     }

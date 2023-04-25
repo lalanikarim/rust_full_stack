@@ -1,5 +1,5 @@
 use gloo_net::http::Request;
-use models::{id_from_thing, Person};
+use models::Person;
 use serde::{Deserialize, Serialize};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -45,7 +45,8 @@ pub fn person_create_component() -> Html {
                             log::info!("{:?}", result);
                             match result.json().await {
                                 Ok(Person { id, .. }) => {
-                                    let id = id_from_thing(id).unwrap();
+                                    //let id = id_from_thing(id).unwrap();
+                                    let id = id.expect("Id expected").to_string();
                                     navigator.push(&Route::Person { id });
                                 }
                                 Err(err) => log::error!("{:?}", err),

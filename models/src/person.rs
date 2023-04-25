@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+use crate::Thing;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Person {
-    pub id: Option<Value>,
+    pub id: Option<Thing>,
     pub name: String,
 }
 

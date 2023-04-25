@@ -97,7 +97,7 @@ CREATE persons SET name = 'Karim'
 2. Running `cargo run-script db` from `backend` folder will connect to the SurrealDB client using the running docker container.
 
 #### Frontend
-1. Running `cargo run-script watch` from `frontend` folder will run `trunk serve` for frontend.
+No `cargo run-script` command for frontend.
 
 ### Inspirations
 

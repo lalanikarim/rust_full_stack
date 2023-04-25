@@ -13,10 +13,8 @@ pub fn persons_component() -> Html {
                 wasm_bindgen_futures::spawn_local(async move {
                     let url = format!("{BASE_URL}/api/persons");
 
-                    log::info!("Making Request");
                     match Request::get(&url).send().await {
                         Ok(resp) => {
-                            log::info!("Response Received");
                             match resp.json().await {
                                 Ok(json) => {
                                     let fetched_persons: Vec<Person> = json;

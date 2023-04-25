@@ -22,10 +22,8 @@ pub fn person_details_component(PersonDetailsProps { id }: &PersonDetailsProps) 
                     let id = id.clone();
                     let url = format!("{BASE_URL}/api/persons/{id}");
 
-                    log::info!("Making Request");
                     match Request::get(&url).send().await {
                         Ok(resp) => {
-                            log::info!("Response Received");
                             match resp.json().await {
                                 Ok(json) => {
                                     let fetched_person: Person = json;

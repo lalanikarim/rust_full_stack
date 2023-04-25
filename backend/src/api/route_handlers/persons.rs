@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use models::{Id, Person};
+use models::{Person, Thing};
 use serde::Deserialize;
 
 use crate::api::{AppError, AppState};
@@ -14,9 +14,9 @@ impl Persons {
         State(AppState { db }): State<AppState>,
         Path((id,)): Path<(String,)>,
     ) -> Result<Json<Option<Person>>, AppError> {
-        let id = Id::from(id);
-        let id = id.id_content();
-        let person: Option<Person> = db.select(("persons", id)).await?;
+        let thing = Thing::from(id);
+        let id = thing.id;
+        let person: Option<Person> = db.select(("persons", id.to_string())).await?;
         Ok(Json::from(person))
     }
 

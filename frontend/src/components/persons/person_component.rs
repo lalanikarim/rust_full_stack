@@ -12,7 +12,10 @@ pub struct PersonProps {
 #[function_component(PersonComponent)]
 pub fn person_component(PersonProps { person }: &PersonProps) -> Html {
     let id = person.clone().id.expect("Id missing");
-    let id = id.id;
+    let id = id.to_string();
+    let link = html! {
+        <Link<Route> to={Route::Person { id: id.clone() }}>{ id }</Link<Route>>
+    };
     html! {
         <>
             <div>
@@ -21,7 +24,7 @@ pub fn person_component(PersonProps { person }: &PersonProps) -> Html {
             </div>
             <div>
                 <span>{"Id: "}</span>
-                <Link<Route> to={Route::Person { id: id.to_string() }}>{ id.to_string() }</Link<Route>>
+                { link }
             </div>
         </>
     }

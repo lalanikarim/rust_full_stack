@@ -39,10 +39,8 @@ pub fn person_create_component() -> Html {
                     let name = name.to_string();
                     let body = PersonCreatePost { name };
                     let navigator = navigator.clone();
-                    log::info!("{:?}", body);
                     match Request::post(&url).json(&body).unwrap().send().await {
                         Ok(result) => {
-                            log::info!("{:?}", result);
                             match result.json().await {
                                 Ok(Person { id, .. }) => {
                                     //let id = id_from_thing(id).unwrap();

@@ -2,8 +2,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use models::{Person, Thing};
-use serde::Deserialize;
+use models::{forms::EditPersonForm, Person, Thing};
 
 use crate::api::{AppError, AppState};
 
@@ -30,10 +29,10 @@ impl Persons {
 
     pub async fn create(
         State(state): State<AppState>,
-        Json(form): Json<CreatePersonForm>,
+        Json(form): Json<EditPersonForm>,
     ) -> Result<Json<Option<Person>>, AppError> {
         let AppState { db } = state;
-        let CreatePersonForm { name } = form;
+        let EditPersonForm { name } = form;
         let person: Option<Person> = db
             .create("persons")
             .content(Person { name, id: None })
@@ -44,10 +43,10 @@ impl Persons {
     pub async fn update(
         State(state): State<AppState>,
         Path((id,)): Path<(String,)>,
-        Json(form): Json<CreatePersonForm>,
+        Json(form): Json<EditPersonForm>,
     ) -> Result<Json<Option<Person>>, AppError> {
         let AppState { db } = state;
-        let CreatePersonForm { name } = form;
+        let EditPersonForm { name } = form;
         let mut response = db
             .query(format!("UPDATE persons set name = $name where id = '{id}'"))
             .bind(("name", name))
@@ -56,9 +55,14 @@ impl Persons {
         let person = persons.first().map(|p| p.to_owned());
         Ok(Json::from(person))
     }
-}
 
-#[derive(Debug, Deserialize)]
-pub struct CreatePersonForm {
-    pub name: String,
+    pub async fn delete(
+        State(state): State<AppState>,
+        Path((id,)): Path<(String,)>,
+    ) -> Result<(), AppError> {
+        let AppState { db } = state;
+        let id = Thing::from(id).id.to_string();
+        db.delete(("persons", id)).await?;
+        Ok(())
+    }
 }

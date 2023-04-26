@@ -1,3 +1,4 @@
+pub mod forms;
 pub mod id;
 pub mod person;
 pub mod thing;

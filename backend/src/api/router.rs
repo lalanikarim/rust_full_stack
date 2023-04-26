@@ -8,7 +8,7 @@ pub fn get_routes() -> Router<AppState> {
         "/persons",
         Router::new()
             .route("/", get(Persons::persons).post(Persons::create))
-            .route("/:id", get(Persons::person)),
+            .route("/:id", get(Persons::person).patch(Persons::update)),
     );
     router
 }

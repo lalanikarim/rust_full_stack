@@ -40,6 +40,22 @@ impl Persons {
             .await?;
         Ok(Json::from(person))
     }
+
+    pub async fn update(
+        State(state): State<AppState>,
+        Path((id,)): Path<(String,)>,
+        Json(form): Json<CreatePersonForm>,
+    ) -> Result<Json<Option<Person>>, AppError> {
+        let AppState { db } = state;
+        let CreatePersonForm { name } = form;
+        let mut response = db
+            .query(format!("UPDATE persons set name = $name where id = '{id}'"))
+            .bind(("name", name))
+            .await?;
+        let persons = response.take::<Vec<Person>>(0)?;
+        let person = persons.first().map(|p| p.to_owned());
+        Ok(Json::from(person))
+    }
 }
 
 #[derive(Debug, Deserialize)]

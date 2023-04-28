@@ -34,7 +34,7 @@ Let the compiler be your guide.
 2. Install Yew prerequisites, trunk cargo crate, as well as wasm target.  
 ```
 cargo install trunk
-rustup add target wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown
 ```
 3. Install the `cargo-watch` crate. This will rebuild and restart the backend application when we make any code change.  
 ```

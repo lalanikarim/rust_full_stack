@@ -1,4 +1,4 @@
-use axum::body::{boxed, Body, BoxBody, HttpBody};
+use axum::body::{boxed, Body, HttpBody};
 use axum::response::Response;
 use axum::routing::{get, get_service, IntoMakeService};
 use axum::{Router, Server};
